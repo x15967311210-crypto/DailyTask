@@ -1,0 +1,148 @@
+# ==============================================================================
+# DailyTask 云端构建：产出可直接安装的 Release 签名版 APK
+#
+# 触发方式
+#   1) 手动：仓库页面 Actions -> Build APK -> Run workflow（可选 release / debug）
+#   2) 推送：push 到 master / main 分支
+#   3) 打标签：push 形如 v2.4.2.2 的 tag（会自动创建 Release 并附上 APK）
+#
+# 产物
+#   Release 使用工程内 app/DailyTask.jks 签名，文件名格式 DT_<yyyyMMdd>_<versionName>.apk
+#   下载位置：Actions 运行详情页底部 Artifacts，或 tag 触发时的 Releases 页面
+#
+# 关于签名密钥（可选加固）
+#   当前直接使用仓库里的 app/DailyTask.jks，开箱即用。
+#   如需改为从 Secrets 注入，把密钥存为 Base64 后按下面的步骤替换即可：
+#     - name: Restore keystore
+#       run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/DailyTask.jks
+#   并同步修改 app/build.gradle 的 signingConfigs 从环境变量读取口令。
+# ==============================================================================
+
+name: Build APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 构建类型
+        required: true
+        default: release
+        type: choice
+        options:
+          - release
+          - debug
+  push:
+    branches:
+      - master
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - master
+      - main
+
+# 创建 Release 需要写权限；读取仓库内容需要读权限
+permissions:
+  contents: write
+
+# 同一分支重复触发时取消上一次未完成的运行，避免排队
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # 与 app/build.gradle 中的 build-tools / ndkVersion 保持一致
+  BUILD_TOOLS_VERSION: 36.0.0
+  ANDROID_PLATFORM: android-36
+  NDK_VERSION: 21.4.7075529
+  CMAKE_VERSION: 3.22.1
+
+jobs:
+  build:
+    name: assemble${{ github.event.inputs.build_type || 'Release' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # AGP 8.11.1 与 Kotlin 2.3.20 均要求 JDK 17
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK tools
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK packages
+        run: |
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager --install \
+            "platform-tools" \
+            "platforms;${ANDROID_PLATFORM}" \
+            "build-tools;${BUILD_TOOLS_VERSION}" \
+            "ndk;${NDK_VERSION}" \
+            "cmake;${CMAKE_VERSION}"
+
+      # 工程内没有 local.properties，显式写入以确保 AGP 定位到 SDK
+      - name: Configure local.properties
+        run: echo "sdk.dir=${ANDROID_HOME}" > local.properties
+
+      # 缓存 Gradle 依赖与 wrapper 发行包，二次构建显著加速
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle', 'gradle.properties', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Resolve Gradle task
+        id: task
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.build_type }}" = "debug" ]; then
+            echo "name=assembleDebug" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=assembleRelease" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build APK
+        run: ./gradlew --no-daemon --stacktrace ${{ steps.task.outputs.name }}
+
+      - name: Collect and verify APKs
+        run: |
+          mkdir -p artifacts
+          find app/build/outputs/apk -name '*.apk' -exec cp -v {} artifacts/ \;
+          ls -lh artifacts
+          APKSIGNER="${ANDROID_HOME}/build-tools/${BUILD_TOOLS_VERSION}/apksigner"
+          for f in artifacts/*.apk; do
+            echo "===== ${f}"
+            "${APKSIGNER}" verify --print-certs "${f}" | head -30
+          done
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DailyTask-${{ github.event.inputs.build_type || 'release' }}
+          path: artifacts/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      # 打 tag 时自动创建 Release 并附带 APK
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" artifacts/*.apk \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes
