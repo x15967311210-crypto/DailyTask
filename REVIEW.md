@@ -165,12 +165,16 @@ SharedFlow 收集 → `TaskScheduler.notifyClockIn()`；识别
 - `TaskConfigActivity` 修改超时时间 → `FloatingWindowController.setOvertime()`
 - `MainActivity` 遥控"截屏"倒计时 → `FloatingWindowController.updateTime()`
 
+**显示规则（已收敛）**：悬浮窗只在「倒计时进行中」且「未显示伪装息屏蒙层」时可见；
+空闲状态 `alpha=0` 且带 `FLAG_NOT_TOUCHABLE`，完全不挡点击。倒计时结束时由 `TaskScheduler` /
+`MainActivity` 主动 `updateTime(0)` 收尾。
+
 **重点关注**：
 
 | 风险点                                    | 描述                                                                             |
 |----------------------------------------|--------------------------------------------------------------------------------|
 | `lateinit binding` + `START_STICKY`    | 服务重启不调 onCreate，binding 未初始化                                                   |
-| 内存监控 `delay(1000)` 省电模式下 `60000`       | 省电模式每 60 秒检查一次，内存可能已经爆了才报警                                                     |
+| 内存监控 `delay(30000)` 省电模式下 `60000`       | 省电模式每 60 秒检查一次，内存可能已经爆了才报警                                                     |
 | `onDestroy` 里 `cancel()`               | `CoroutineScope by CoroutineScope(Dispatchers.Main)` 的实现，如果 cancel 先于协程完成，可能残留 |
 | `windowManager.addView` 在 `onCreate` 中 | 如果 App 在后台时 Service 被 START_STICKY 重启，`onCreate` 可能不被调用                        |
 | 多个协程同时 `collect` `timeTick`            | `FloatingWindowService` 里 3 个 launch 各 collect 不同 Flow，互不干扰；但只启动一次 Service     |
@@ -181,10 +185,10 @@ SharedFlow 收集 → `TaskScheduler.notifyClockIn()`；识别
 |---|---------|-----------------------------------|----------------------|-------------------------------------------------------------------------------|---------|
 | 1 | 拖动悬浮窗   | 按住悬浮窗 → 拖动到屏幕任意位置 → 松手            | 悬浮窗停留在新位置、不弹回原位      | 拖动流畅度、松手后位置锁定                                                                 | 🟢️测试通过 |
 | 2 | 倒计时数字更新 | 观察任务执行中悬浮窗显示的剩余秒数                 | 数字每秒递减，与实际倒计时一致      | 数字变化频率、与 TaskScheduler 的 tick 同步                                              | 🟢️测试通过 |
-| 3 | 超时时间修改  | TaskConfigActivity 修改超时时间 → 返回主页面 | 悬浮窗的倒计时上限更新为新值       | overtime Flow 是否被正确 collect                                                   | 🟢️测试通过 |
+| 3 | 超时时间修改  | TaskConfigActivity 修改超时时间 → 返回主页面 | 倒计时上限更新为新值（空闲态悬浮窗不显示，任务执行中才能看到）       | overtime Flow 是否被正确 collect                                                   | 🟢️测试通过 |
 | 4 | 内存监控告警  | 模拟高内存占用（打开多个大型 APP）→ 等待内存监控周期     | 发送内存超标消息（企业微信或者QQ邮件） | 内存值是否正确、告警阈值是否合理                                                              | ⚠️暂未测试  |
-| 5 | 省电模式    | 系统设置中开启省电模式 → 观察内存监控频率            | 监控间隔从 1 秒变为 60 秒     | 模式切换是否实时生效                                                                    | 🟢️测试通过 |
-| 6 | 息屏时隐藏   | 任务运行中 → 触发息屏（蒙层显示）                | 悬浮窗自动隐藏              | 与④的联动正确：`MaskViewController.showMaskView` → `FloatingWindowController.hide()` | 🟢️测试通过 |
+| 5 | 省电模式    | 系统设置中开启省电模式 → 观察内存监控频率            | 监控间隔从 30 秒变为 60 秒     | 模式切换是否实时生效                                                                    | 🟢️测试通过 |
+| 6 | 息屏时隐藏   | 任务运行中 → 触发息屏（蒙层显示）                | 悬浮窗自动隐藏（空闲态本来就隐藏；亮屏后除非倒计时仍在进行，否则不恢复显示）              | 与④的联动正确：`MaskViewController.showMaskView` → `FloatingWindowController.hide()` | 🟢️测试通过 |
 
 ---
 

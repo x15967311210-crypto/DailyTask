@@ -104,13 +104,13 @@ class CaptureImageService : Service(), CoroutineScope by MainScope() {
     private val notificationBuilder by lazy {
         NotificationCompat.Builder(this, "capture_image_service_channel").apply {
             setSmallIcon(R.mipmap.ic_launcher)
-            setContentText("截屏服务已就绪")
-            setPriority(NotificationCompat.PRIORITY_LOW)
+            setContentText(resources.getString(R.string.capture_service_content_text))
+            setPriority(NotificationCompat.PRIORITY_MIN)
             setOngoing(true)
             setOnlyAlertOnce(true)
             setSilent(true)
             setCategory(NotificationCompat.CATEGORY_SERVICE)
-            setShowWhen(true)
+            setShowWhen(false)
             setSound(null)
             setVibrate(null)
         }
@@ -125,11 +125,19 @@ class CaptureImageService : Service(), CoroutineScope by MainScope() {
     override fun onCreate() {
         super.onCreate()
         resetCaptureScope()
-        val name = "${resources.getString(R.string.app_name)}截屏服务"
+        val channelId = "capture_image_service_channel"
+        // 通知渠道的 importance 一经创建就不可修改，历史安装只能删掉重建
+        if (notificationManager.getNotificationChannel(channelId)?.importance
+            != NotificationManager.IMPORTANCE_MIN
+        ) {
+            notificationManager.deleteNotificationChannel(channelId)
+        }
         val channel = NotificationChannel(
-            "capture_image_service_channel", name, NotificationManager.IMPORTANCE_LOW
+            channelId,
+            resources.getString(R.string.capture_service_channel_name),
+            NotificationManager.IMPORTANCE_MIN
         ).apply {
-            description = "Channel for Capture Image Service"
+            description = resources.getString(R.string.capture_service_channel_desc)
         }
         notificationManager.createNotificationChannel(channel)
         val notification = notificationBuilder.build()

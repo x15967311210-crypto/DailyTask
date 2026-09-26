@@ -30,9 +30,11 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/Theme.DailyTask"
         android:usesCleartextTraffic="true">
+        <!-- excludeFromRecents：不出现在「最近任务」里 -->
         <activity
             android:name=".ui.MainActivity"
             android:configChanges="orientation|screenSize"
+            android:excludeFromRecents="true"
             android:exported="true"
             android:launchMode="singleTask">
             <intent-filter>
@@ -41,11 +43,21 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".ui.SettingsActivity" />
-        <activity android:name=".ui.MessageChannelActivity" />
-        <activity android:name=".ui.TaskConfigActivity" />
-        <activity android:name=".ui.CommandActivity" />
-        <activity android:name=".ui.QuestionAndAnswerActivity" />
+        <activity
+            android:name=".ui.SettingsActivity"
+            android:excludeFromRecents="true" />
+        <activity
+            android:name=".ui.MessageChannelActivity"
+            android:excludeFromRecents="true" />
+        <activity
+            android:name=".ui.TaskConfigActivity"
+            android:excludeFromRecents="true" />
+        <activity
+            android:name=".ui.CommandActivity"
+            android:excludeFromRecents="true" />
+        <activity
+            android:name=".ui.QuestionAndAnswerActivity"
+            android:excludeFromRecents="true" />
 
         <service android:name=".service.FloatingWindowService" />
         <service

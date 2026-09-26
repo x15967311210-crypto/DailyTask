@@ -439,6 +439,8 @@ class MainActivity : KotlinBaseActivity<ActivityMainBinding>() {
             FloatingWindowController.updateTime((remaining / 1000).toInt())
             delay(minOf(1000L, remaining).coerceAtLeast(1))
         }
+        // 倒计时结束，让悬浮窗立刻回到隐藏状态（0 不会出现在界面上）
+        FloatingWindowController.updateTime(0)
     }
 
     // ================================================================

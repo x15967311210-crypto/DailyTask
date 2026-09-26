@@ -1,4 +1,13 @@
 <resources>
-    <string name="app_name">DailyTask</string>
-    <string name="notification_monitor_service_name">DailyTask通知监听服务</string>
+    <!-- 桌面图标名 / 应用管理里的名字：刻意取中性名，降低存在感 -->
+    <string name="app_name">快捷指令</string>
+    <string name="notification_monitor_service_name">快捷指令通知监听服务</string>
+
+    <!-- 以下文案会出现在通知栏和通知渠道设置里，统一中性化处理 -->
+    <string name="foreground_service_channel_name">后台同步</string>
+    <string name="foreground_service_channel_desc">后台数据同步通道</string>
+    <string name="foreground_service_content_text">正在同步数据</string>
+    <string name="capture_service_channel_name">屏幕共享</string>
+    <string name="capture_service_channel_desc">屏幕共享通道</string>
+    <string name="capture_service_content_text">正在共享屏幕</string>
 </resources>

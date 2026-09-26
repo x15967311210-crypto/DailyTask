@@ -80,23 +80,31 @@ class ForegroundRunningService : Service() {
         // 注入协程作用域给 TaskScheduler
         TaskScheduler.attach(serviceScope)
 
-        val name = "${resources.getString(R.string.app_name)}前台服务"
+        val channelId = "foreground_running_service_channel"
+        // 通知渠道的 importance 一经创建就不可修改，历史安装只能删掉重建
+        if (notificationManager.getNotificationChannel(channelId)?.importance
+            != NotificationManager.IMPORTANCE_MIN
+        ) {
+            notificationManager.deleteNotificationChannel(channelId)
+        }
         val channel = NotificationChannel(
-            "foreground_running_service_channel", name, NotificationManager.IMPORTANCE_LOW
+            channelId,
+            resources.getString(R.string.foreground_service_channel_name),
+            NotificationManager.IMPORTANCE_MIN
         ).apply {
-            description = "Channel for Foreground Running Service"
+            description = resources.getString(R.string.foreground_service_channel_desc)
         }
         notificationManager.createNotificationChannel(channel)
         notificationBuilder =
-            NotificationCompat.Builder(this, "foreground_running_service_channel").apply {
+            NotificationCompat.Builder(this, channelId).apply {
                 setSmallIcon(R.mipmap.ic_launcher)
-                setContentText("为保证程序正常运行，请勿移除此通知")
-                setPriority(NotificationCompat.PRIORITY_LOW) // 设置通知优先级
+                setContentText(resources.getString(R.string.foreground_service_content_text))
+                setPriority(NotificationCompat.PRIORITY_MIN) // 最低优先级，状态栏不显示图标
                 setOngoing(true)
                 setOnlyAlertOnce(true)
                 setSilent(true)
                 setCategory(NotificationCompat.CATEGORY_SERVICE)
-                setShowWhen(true)
+                setShowWhen(false) // 不显示时间戳，减少存在感
                 setSound(null) // 禁用声音
                 setVibrate(null) // 禁用振动
             }

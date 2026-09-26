@@ -39,6 +39,16 @@ class FloatingWindowService : Service(), CoroutineScope by CoroutineScope(Dispat
     private var initialTouchY = 0f
     private var memoryMonitorJob: Job? = null
 
+    /** 是否有倒计时正在进行中 */
+    private var countdownActive = false
+
+    /** 倒计时停止发 tick 后的自动收起任务 */
+    private var idleJob: Job? = null
+
+    /** 蒙层（伪装息屏）是否正在显示 */
+    private var maskVisible = false
+    private var lastMemoryWarningTime = 0L
+
     override fun onBind(intent: Intent?): IBinder? {
         return null
     }
@@ -77,7 +87,17 @@ class FloatingWindowService : Service(), CoroutineScope by CoroutineScope(Dispat
         launch {
             FloatingWindowController.timeTick.collect { tick ->
                 binding.timeView.text = "${tick}s"
-                binding.root.alpha = if (tick < 1) 0.0f else 1.0f
+                countdownActive = tick >= 1
+                applyWindowVisibility()
+                // 兜底：倒计时异常中断（页面销毁、协程被取消）时没人发 0，超时自动收起
+                idleJob?.cancel()
+                if (countdownActive) {
+                    idleJob = launch {
+                        delay(5_000L)
+                        countdownActive = false
+                        applyWindowVisibility()
+                    }
+                }
             }
         }
         launch {
@@ -87,22 +107,18 @@ class FloatingWindowService : Service(), CoroutineScope by CoroutineScope(Dispat
         }
         launch {
             FloatingWindowController.visibility.collect { visible ->
-                if (visible) {
-                    binding.root.alpha = 1.0f
-                    val time = SaveKeyValues.loadInt(
-                        Constant.STAY_OVERTIME_KEY, Constant.DEFAULT_OVER_TIME
-                    )
-                    binding.timeView.text = "${time}s"
-                } else {
-                    binding.root.alpha = 0.0f
-                    binding.timeView.text = "0s"
-                }
+                // visible = true 表示蒙层已退出（亮屏），false 表示正在伪装息屏
+                maskVisible = !visible
+                applyWindowVisibility()
             }
         }
 
         // 获取目标应用任务超时时间
         val time = SaveKeyValues.loadInt(Constant.STAY_OVERTIME_KEY, Constant.DEFAULT_OVER_TIME)
         binding.timeView.text = "${time}s"
+
+        // 空闲状态下一律不显示，只有倒计时进行中才出现
+        applyWindowVisibility()
 
         // 移动悬浮窗
         onDragMove()
@@ -112,11 +128,8 @@ class FloatingWindowService : Service(), CoroutineScope by CoroutineScope(Dispat
 
     private fun startMemoryMonitoring() {
         val mode = SaveKeyValues.loadBoolean(Constant.POWER_SAVE_MODE_KEY, false)
-        val interval = if (mode) {
-            60_000L
-        } else {
-            1_000L
-        }
+        // 悬浮窗默认不显示，没必要保持 1s 采样一次，省电优先
+        val interval = if (mode) 60_000L else 30_000L
         memoryMonitorJob = launch {
             // 立即更新一次
             updateMemoryInfo()
@@ -140,7 +153,9 @@ class FloatingWindowService : Service(), CoroutineScope by CoroutineScope(Dispat
 
             withContext(Dispatchers.Main) {
                 binding.waveProgressView.setProgress(usagePercent)
-                if (usagePercent >= 90) {
+                val currentTime = System.currentTimeMillis()
+                if (usagePercent >= 90 && currentTime - lastMemoryWarningTime >= 5 * 60 * 1000) {
+                    lastMemoryWarningTime = currentTime
                     MessageDispatcher.sendMessage("内存使用预警", "当前内存使用已超过90%，请关注设备运行情况")
                 }
             }
@@ -176,9 +191,29 @@ class FloatingWindowService : Service(), CoroutineScope by CoroutineScope(Dispat
         })
     }
 
+    /**
+     * 收敛显示范围：只有「倒计时进行中」且「未显示蒙层」时才可见。
+     * 不可见时同时置为不可触摸，避免透明窗口吞掉目标 App 的点击事件。
+     * */
+    private fun applyWindowVisibility() {
+        val params = floatViewParams ?: return
+        val visible = countdownActive && !maskVisible
+        binding.root.alpha = if (visible) 1.0f else 0.0f
+        params.flags = if (visible) {
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+        } else {
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        }
+        if (binding.root.isAttachedToWindow) {
+            windowManager.updateViewLayout(binding.root, params)
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         memoryMonitorJob?.cancel()
+        idleJob?.cancel()
         cancel()
         if (::binding.isInitialized && binding.root.isAttachedToWindow) {
             try {

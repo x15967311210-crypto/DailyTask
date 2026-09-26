@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
-import android.util.Log
 import androidx.core.app.NotificationManagerCompat
 import com.pengxh.daily.app.utils.Constant
 import com.pengxh.daily.app.utils.TaskScheduler
@@ -30,8 +29,7 @@ fun Context.isApplicationExist(packageName: String): Boolean {
             packageManager.getPackageInfo(packageName, 0)
         }
         true
-    } catch (e: PackageManager.NameNotFoundException) {
-        e.printStackTrace()
+    } catch (_: PackageManager.NameNotFoundException) {
         false
     }
 }
@@ -43,7 +41,6 @@ fun Context.isApplicationExist(packageName: String): Boolean {
  */
 fun Context.openApplication(onOpened: (() -> Unit)? = null) {
     val targetApp = Constant.getTargetApp()
-    Log.d("Ex-Context", "openApplication: $targetApp")
     if (!isApplicationExist(targetApp)) {
         "未安装指定的目标软件，无法执行任务".show(this)
         TaskScheduler.requestStopDueToError("未安装指定的目标软件，无法执行任务")
@@ -67,6 +64,6 @@ fun Context.openApplication(onOpened: (() -> Unit)? = null) {
         startActivity(intent)
         onOpened?.invoke()
     } else {
-        TaskScheduler.requestStopDueToError("未找到目标应用的 Launcher Activity，包名：$targetApp")
+        TaskScheduler.requestStopDueToError("未找到目标应用的 Launcher Activity")
     }
 }

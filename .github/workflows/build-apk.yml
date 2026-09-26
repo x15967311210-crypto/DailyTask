@@ -4,7 +4,7 @@
 # 触发方式
 #   1) 手动：仓库页面 Actions -> Build APK -> Run workflow（可选 release / debug）
 #   2) 推送：push 到 master / main 分支
-#   3) 打标签：push 形如 v2.4.2.2 的 tag（会自动创建 Release 并附上 APK）
+#   3) 打标签：push 形如 v2.4.3 的 tag（会自动创建 Release 并附上 APK）
 #
 # 产物
 #   Release 使用工程内 app/DailyTask.jks 签名，文件名格式 DT_<yyyyMMdd>_<versionName>.apk

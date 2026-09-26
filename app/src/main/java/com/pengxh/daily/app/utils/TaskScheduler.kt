@@ -226,6 +226,8 @@ object TaskScheduler {
 
             timeoutJob.cancel()
             clockInDeferred = null
+            // 超时倒计时结束，让悬浮窗立刻回到隐藏状态
+            FloatingWindowController.updateTime(0)
 
             // 超时路径——打卡失败，回到主页 + 兜底通知 + 继续下一个任务
             if (!clockInSuccess) {

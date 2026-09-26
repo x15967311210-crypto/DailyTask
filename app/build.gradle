@@ -15,11 +15,14 @@ android {
     }
 
     defaultConfig {
-        applicationId 'com.pengxh.daily.app'
+        // 安装包名：手机和其他应用看到的身份。刻意与源码 namespace 解耦，
+        // namespace（ com.pengxh.daily.app ）保持不动，否则会连带影响 R/BuildConfig 包名
+        // 以及 JNI 符号名 Java_com_pengxh_daily_app_utils_DailyTask_getWatermarkText
+        applicationId 'com.quickcommand.app'
         minSdk 26
         targetSdk 36
-        versionCode 2422
-        versionName '2.4.2.2'
+        versionCode 2430
+        versionName '2.4.3'
         ndkVersion '21.4.7075529'
 
         ndk {
