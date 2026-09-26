@@ -75,8 +75,13 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      # 注意：该 action 默认 packages 为 "tools platform-tools"，但 Google 已下架古老的
+      # `tools` 包，会导致 sdkmanager 报 "Failed to find package 'tools'" 并失败。
+      # 因此这里显式只装 platform-tools，其余 SDK 包在下一步自行安装。
       - name: Set up Android SDK tools
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       - name: Install SDK packages
         run: |
